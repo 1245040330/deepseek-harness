@@ -1,0 +1,15 @@
+ARG BASE_IMAGE=swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/node:24.14.0-bookworm
+FROM ${BASE_IMAGE}
+
+ARG APT_MIRROR=https://mirrors.aliyun.com
+ENV npm_config_registry=https://registry.npmmirror.com
+
+# 源码开发环境和 Linux 原生模块编译工具。
+RUN printf 'Types: deb\nURIs: %s/debian\nSuites: bookworm bookworm-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\nTypes: deb\nURIs: %s/debian-security\nSuites: bookworm-security\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' "$APT_MIRROR" "$APT_MIRROR" > /etc/apt/sources.list.d/debian.sources \
+    && apt-get update -o APT::Update::Error-Mode=any \
+    && apt-get install -y --no-install-recommends python3 python3-venv build-essential git cmake \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g pnpm@11.28.5
+
+WORKDIR /workspace
+CMD ["bash"]

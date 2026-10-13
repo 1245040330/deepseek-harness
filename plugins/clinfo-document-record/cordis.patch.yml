@@ -1,0 +1,6 @@
+- insert:
+    - id: clinfo-document-record
+      name: './index.ts'
+      config:
+        endpoint: 'https://innerapi.clinfo.cn/hitl/document-record/list'
+        timeoutMs: 30000
