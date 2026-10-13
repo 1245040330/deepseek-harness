@@ -1,0 +1,15 @@
+{
+  "result": [
+    {
+      "type": "text",
+      "text": "{\"agentId\":\"2\",\"plugins\":[\"custom\"]}"
+    }
+  ],
+  "currentTools": [
+    "fixture_lookup",
+    "load_agent_tools"
+  ],
+  "otherTools": [
+    "load_agent_tools"
+  ]
+}
