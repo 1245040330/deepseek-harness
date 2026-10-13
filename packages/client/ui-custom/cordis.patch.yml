@@ -24,3 +24,9 @@
 - insert:
     - id: ui-custom-chat
       name: './ui-chat/lib/index.js'
+
+- id: ui-workspace
+  disabled: true
+- insert:
+    - id: ui-custom-workspace
+      name: './ui-workspace/lib/index.js'

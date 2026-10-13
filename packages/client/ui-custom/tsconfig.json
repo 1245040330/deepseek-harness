@@ -5,6 +5,7 @@
     { "path": "./ui-layout" },
     { "path": "./ui-sidebar" },
     { "path": "./ui-conversation" },
-    { "path": "./ui-chat" }
+    { "path": "./ui-chat" },
+    { "path": "./ui-workspace" }
   ]
 }

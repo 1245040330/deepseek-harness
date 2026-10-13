@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 
 const directory = dirname(fileURLToPath(import.meta.url))
 const root = resolve(directory, '../../..')
-const names = ['ui-layout', 'ui-sidebar', 'ui-conversation', 'ui-chat']
+const names = ['ui-layout', 'ui-sidebar', 'ui-conversation', 'ui-chat', 'ui-workspace']
 const run = (args, cwd = root) => {
   const result = spawnSync(process.execPath, args, { cwd, stdio: 'inherit' })
   if (result.error) throw result.error

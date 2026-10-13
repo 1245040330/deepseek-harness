@@ -3,7 +3,7 @@
 
 import type { ReactNode, RefObject } from 'react'
 import {
-  IconChevronDownOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
+  IconFolderCloseRegular, IconFolderOpenRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ConversationContentProps } from '../contract/slots.ts'
@@ -35,7 +35,7 @@ export function workspaceLabel(cwd: string): string {
  * @param props.onClick - menu toggle.
  * @returns the chip button element.
  */
-export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }: {
+export function WorkspaceChip({ buttonRef, label, t }: {
   buttonRef?: RefObject<HTMLButtonElement>
   label?: string | undefined
   menuOpen?: boolean
@@ -48,15 +48,12 @@ export function WorkspaceChip({ buttonRef, label, menuOpen = false, onClick, t }
       type="button"
       className={css.workspace}
       aria-label={t('hero.chooseWorkspace')}
-      aria-haspopup="menu"
-      aria-expanded={menuOpen}
-      onClick={onClick}
+      disabled
     >
       {label === undefined
         ? <IconFolderCloseRegular className={css.folder} size={16} />
         : <IconFolderOpenRegular className={css.folder} size={16} />}
       <span className={css.workspaceLabel}>{label ?? t('hero.chooseWorkspace')}</span>
-      <IconChevronDownOutlineRegular className={css.chevron} size={12} />
     </button>
   )
 }
