@@ -1,0 +1,26 @@
+# Keep the default sources in the profile, but mount only the copied implementations.
+- id: ui-layout
+  disabled: true
+- id: ui-sidebar
+  disabled: true
+- id: ui-conversation
+  disabled: true
+- insert:
+    - id: ui-custom-layout
+      name: './ui-layout/lib/index.js'
+    - id: ui-custom-sidebar
+      name: './ui-sidebar/lib/index.js'
+    - id: ui-custom-conversation
+      name: './ui-conversation/lib/index.js'
+# Custom settings navigation: hide UI entries without disabling their Host capabilities.
+- id: ui-settings-models
+  disabled: true
+- id: ui-settings-plugins
+  disabled: true
+- id: ui-agent-preset
+  disabled: true
+- id: ui-chat
+  disabled: true
+- insert:
+    - id: ui-custom-chat
+      name: './ui-chat/lib/index.js'
