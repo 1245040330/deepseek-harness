@@ -1,0 +1,10 @@
+{
+  "compilerOptions": { "composite": true },
+  "files": [],
+  "references": [
+    { "path": "./ui-layout" },
+    { "path": "./ui-sidebar" },
+    { "path": "./ui-conversation" },
+    { "path": "./ui-chat" }
+  ]
+}
