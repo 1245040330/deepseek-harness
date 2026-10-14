@@ -1,0 +1,6 @@
+- insert:
+    - id: agent-chat-preset
+      name: './index.ts'
+      config:
+        endpoint: 'https://gl.jinjiaoyun.com/zhijiaoyun/chatgpt/ChatGPTPublicBAL/getAgentChatPresetData.call'
+        timeoutMs: 30000

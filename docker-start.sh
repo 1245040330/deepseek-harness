@@ -4,9 +4,16 @@ set -euo pipefail
 # 进入 Linux 源码开发环境；拷贝项目时排除所有 node_modules。
 # 容器内执行 pnpm install，再运行 pnpm run dev:web。
 # 也可传入命令：bash docker-start.sh pnpm install
+# 默认映射 3080:3080；WEB_PORT 可同时指定宿主机和容器端口。
 cd "$(dirname "${BASH_SOURCE[0]}")"
 IMAGE="${DOCKER_DEV_IMAGE:-deepseek-harness-source-env}"
 CONTAINER="${DOCKER_DEV_CONTAINER:-deepseek-harness-dev}"
+WEB_PORT="${WEB_PORT:-3080}"
+if [[ ! "$WEB_PORT" =~ ^[0-9]{1,5}$ ]] || (( 10#$WEB_PORT < 1 || 10#$WEB_PORT > 65535 )); then
+  echo "WEB_PORT 必须是 1 到 65535 之间的端口号。" >&2
+  exit 1
+fi
+WEB_PORT=$((10#$WEB_PORT))
 command -v docker >/dev/null || { echo "请先在服务器安装 Docker。" >&2; exit 1; }
 docker info >/dev/null
 
@@ -19,6 +26,13 @@ enter_container() {
 
 # 退出终端后容器继续运行；再次启动脚本复用原环境。
 if docker container inspect "$CONTAINER" >/dev/null 2>&1; then
+  port_bindings="$(docker container inspect --format '{{range $port, $bindings := .HostConfig.PortBindings}}{{range $bindings}}{{printf "%s %s\n" $port .HostPort}}{{end}}{{end}}' "$CONTAINER")"
+  if ! printf '%s\n' "$port_bindings" | grep -Fxq "$WEB_PORT/tcp $WEB_PORT"; then
+    echo "现有容器 $CONTAINER 没有配置所需端口映射 $WEB_PORT:$WEB_PORT。" >&2
+    echo "Docker 无法给已有容器追加端口映射；请保留所需数据后手动重建，或使用 DOCKER_DEV_CONTAINER 指定新容器名称。" >&2
+    echo "现有容器和数据卷未修改。" >&2
+    exit 1
+  fi
   if [[ "$(docker container inspect --format '{{.State.Running}}' "$CONTAINER")" != true ]]; then
     docker start "$CONTAINER" >/dev/null
   fi
@@ -45,9 +59,10 @@ args=(-d --init --name "$CONTAINER" --restart unless-stopped
   --mount "type=volume,source=deepseek-harness-node-modules,target=/workspace/node_modules"
   --mount "type=volume,source=deepseek-harness-home,target=/root"
   --workdir /workspace)
-# Web 访问时指定 WEB_PORT，并配置应用监听 0.0.0.0。
-if [[ -n "${WEB_PORT:-}" ]]; then args+=(-p "$WEB_PORT:$WEB_PORT"); fi
+# 应用需监听容器网卡的具体 IP，且应用端口需与 WEB_PORT 一致。
+args+=(-p "$WEB_PORT:$WEB_PORT")
 
 echo "源码位于 /workspace；容器内修改文件会同步到服务器源码目录。"
+echo "Web 端口映射：$WEB_PORT:$WEB_PORT；应用监听地址需另行配置。"
 docker run "${args[@]}" "$IMAGE" sleep infinity >/dev/null
 enter_container "$@"

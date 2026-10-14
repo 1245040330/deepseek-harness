@@ -1,4 +1,22 @@
 # Keep the default sources in the profile, but mount only the copied implementations.
+- insert:
+    - id: agent-chat-preset
+      name: '../../../plugins/agent-chat-preset/index.ts'
+      config:
+        endpoint: 'https://gl.jinjiaoyun.com/zhijiaoyun/chatgpt/ChatGPTPublicBAL/getAgentChatPresetData.call'
+        timeoutMs: 30000
+- insert:
+    - id: url-workspace
+      name: '../../../plugins/url-workspace/index.ts'
+      config:
+        rootDirectory: '/workspace/'
+- insert:
+    - id: agent-tool-loader
+      name: '../../../plugins/agent-tool-loader/index.ts'
+      config:
+        endpoint: 'https://gl.jinjiaoyun.com/zhijiaoyun/chatgpt/ChatGPTPublicBAL/getAgentToolList.call'
+        pluginsDir: '..'
+        timeoutMs: 30000
 - id: ui-layout
   disabled: true
 - id: ui-sidebar

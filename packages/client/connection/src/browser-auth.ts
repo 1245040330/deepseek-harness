@@ -236,7 +236,7 @@ export class BrowserAuth {
 
   /**
    * Authenticate an index request. A valid root query token mints the cookie
-   * and redirects to the directory-relative clean `./`; a valid cookie lets
+   * and redirects to a directory-relative URL with only the token removed; a valid cookie lets
    * the caller serve the index; every other request receives the same minimal
    * 401 response.
    * @param req - incoming root or configured-index request.
@@ -252,6 +252,9 @@ export class BrowserAuth {
     const url = new URL(req.url ?? '/', 'http://dsh.invalid')
     const tokens = url.searchParams.getAll(TOKEN_QUERY)
     if (tokens.length > 0) {
+      const parameters = new URLSearchParams(url.searchParams)
+      parameters.delete(TOKEN_QUERY)
+      const redirect = parameters.size === 0 ? './' : `./?${parameters.toString()}`
       const authority = requestAudience(req.headers, secure)
       if (req.method === 'GET' && url.pathname === '/' && tokens.length === 1
         && authority !== undefined && tokenMatches(tokens.join(''), this.launchToken)) {
@@ -265,7 +268,7 @@ export class BrowserAuth {
         }, this.secret)
         res.writeHead(303, {
           'cache-control': 'no-store',
-          'location': './',
+          'location': redirect,
           'referrer-policy': 'no-referrer',
           'set-cookie': sessionCookie(
             cookieName(authority), value, expiresAt, Math.floor(this.maxAgeMilliseconds / 1000), secure,
@@ -277,7 +280,7 @@ export class BrowserAuth {
       if (req.method === 'GET' && url.pathname === '/' && this.isAuthenticated(req, secure)) {
         res.writeHead(303, {
           'cache-control': 'no-store',
-          'location': './',
+          'location': redirect,
           'referrer-policy': 'no-referrer',
         })
         res.end()

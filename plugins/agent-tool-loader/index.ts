@@ -3,6 +3,9 @@ import { realpath } from 'node:fs/promises'
 import { resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Context, Fiber } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-api-session-controller'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { EntryTree } from '@deepseek-ai/cordis-plugin-loader'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
@@ -13,6 +16,12 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 
 export const name = 'agent-tool-loader'
 export const inject = ['tools', 'loader']
+
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    'agent-tool-loader/failed': { readonly agentId: string }
+  }
+}
 
 /** API and local-directory policy supplied by cordis.patch.yml. */
 export interface Config {
@@ -131,6 +140,48 @@ export function apply(ctx: Context, config: Config): void {
     }
   }
 
+  async function loadSelected(agent: Agent, rawAgentId: string, signal: AbortSignal): Promise<Selection> {
+    if (typeof rawAgentId !== 'string') throw new Error('请提供业务智能体 agentId')
+    const agentId = rawAgentId.trim()
+    if (!agentId) throw new Error('请提供业务智能体 agentId')
+    let pending = loads.get(agent)
+    if (pending !== undefined && pending.agentId !== agentId) {
+      throw new Error(`当前聊天已绑定业务 agentId=${pending.agentId}；切换业务智能体请新建聊天`)
+    }
+    if (pending === undefined) {
+      const ready = load(agent, agentId, AbortSignal.any([
+        signal, lifetime.signal, AbortSignal.timeout(config.timeoutMs),
+      ])).catch((error: unknown) => {
+        loads.delete(agent)
+        throw error
+      })
+      pending = { agentId, ready }
+      loads.set(agent, pending)
+    }
+    return pending.ready
+  }
+
+  class AgentToolLoaderRemote extends TypertRemoteService {
+    constructor(remoteCtx: Context) { super(remoteCtx, 'agentToolLoader') }
+
+    /** Resolve the current chat and use the same loader as load_agent_tools. */
+    @Remote('load')
+    async load(sessionId: string, agentId: string, signal: AbortSignal): Promise<Selection> {
+      try {
+        if (typeof sessionId !== 'string' || !sessionId) throw new Error('会话 ID 无效')
+        const result = await this.ctx.sessionController.resolveAgent(SessionId(sessionId))
+        if ('error' in result) throw result.error
+        if (result.agent.status !== 'idle') throw new Error('会话正在运行，请等待结束后加载工具')
+        return await loadSelected(result.agent, agentId, signal)
+      } catch (error) {
+        throw new RemoteError('agent-tool-loader/failed',
+          `工具加载失败：${error instanceof Error ? error.message : String(error)}`,
+          { agentId }, { cause: error })
+      }
+    }
+  }
+  ctx.inject(['typert', 'sessionController'], remoteCtx => { new AgentToolLoaderRemote(remoteCtx) })
+
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'load_agent_tools',
     description: '根据用户明确提供的业务智能体 agentId 查询并加载当前聊天可用的本地工具插件。不要猜测 agentId；用户没有提供时先询问。加载成功后，后续模型请求可调用返回的插件提供的工具。同一聊天仅绑定一个业务 agentId，换 ID 请新建聊天。',
@@ -139,23 +190,9 @@ export function apply(ctx: Context, config: Config): void {
     timeoutMs: config.timeoutMs,
     isConcurrencySafe: () => false,
     async execute(args, exec) {
-      const agentId = args.agentId.trim()
-      if (!agentId) throw new Error('请提供业务智能体 agentId')
       const agent = exec.agent
       if (agent === undefined) throw new Error('加载插件必须在当前聊天的 Agent 上下文中执行')
-      let pending = loads.get(agent)
-      if (pending !== undefined && pending.agentId !== agentId) {
-        throw new Error(`当前聊天已绑定业务 agentId=${pending.agentId}；切换业务智能体请新建聊天`)
-      }
-      if (pending === undefined) {
-        const ready = load(agent, agentId, AbortSignal.any([exec.signal, lifetime.signal])).catch((error: unknown) => {
-          loads.delete(agent)
-          throw error
-        })
-        pending = { agentId, ready }
-        loads.set(agent, pending)
-      }
-      return JSON.stringify(await pending.ready)
+      return JSON.stringify(await loadSelected(agent, args.agentId, exec.signal))
     },
     presentCall: args => ({ card: 'generic', kind: 'search', title: '加载智能体工具', rawInput: args }),
   })))

@@ -6,6 +6,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import Include from '@deepseek-ai/cordis-plugin-include'
+import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
+import TypertGateway from '@deepseek-ai/dsh-api-gateway'
 import * as loader from './index.ts'
 import { harness } from '../../packages/preset/agent-preset-registry/tests/harness.ts'
 
@@ -37,6 +39,40 @@ execute: async () => 'fixture result' }); }\n`)
     name: 'load_agent_tools', arguments: { agentId }, agent, signal: new AbortController().signal })
   return { ctx, root, entry, first, second, fetcher, run }
 }
+
+it('loads URL-selected tools through RPC and shares the tool loader cache', async () => {
+  const b = await setup()
+  await b.ctx.plugin(TypertRegistry)
+  b.ctx.provide('sessionController', { resolveAgent: async (id: string) => ({
+    agent: id === 'first' ? b.first.agent : b.second.agent,
+  }) })
+  await b.ctx.fiber.await()
+  await b.ctx.plugin(TypertGateway)
+  const invoke = (sessionId = 'first', agentId = '2') => b.ctx.typertGateway.invoke({
+    namespace: 'agentToolLoader', method: 'load', args: { sessionId, agentId },
+  })
+  expect(await invoke()).toEqual({ agentId: '2', plugins: ['custom'] })
+  expect((await b.run()).isError).toBe(false)
+  expect(b.fetcher).toHaveBeenCalledTimes(1)
+  expect(b.ctx.tools.schemas(b.first.agent).map(row => row.name)).toContain('fixture_lookup')
+  expect(b.ctx.tools.schemas(b.second.agent).map(row => row.name)).not.toContain('fixture_lookup')
+  await expect(invoke('first', '3')).rejects.toThrow('新建聊天')
+  await invoke('second')
+  expect(b.fetcher).toHaveBeenCalledTimes(2)
+})
+
+it('allows URL loading to retry after an API failure', async () => {
+  const b = await setup()
+  await b.ctx.plugin(TypertRegistry)
+  b.ctx.provide('sessionController', { resolveAgent: async () => ({ agent: b.first.agent }) })
+  await b.ctx.fiber.await()
+  await b.ctx.plugin(TypertGateway)
+  const invoke = () => b.ctx.typertGateway.invoke({ namespace: 'agentToolLoader', method: 'load',
+    args: { sessionId: 'first', agentId: '2' } })
+  b.fetcher.mockResolvedValueOnce(new Response('failure', { status: 503 }))
+  await expect(invoke()).rejects.toThrow('HTTP 503')
+  expect(await invoke()).toEqual({ agentId: '2', plugins: ['custom'] })
+})
 
 it('loads local tools through YAML into one chat, reuses the selection and disposes it', async () => {
   const b = await setup()

@@ -192,6 +192,43 @@ describe('BrowserAuth', () => {
     ))).toBe(true)
   })
 
+  it('removes the login token while retaining business parameters behind a mount', async () => {
+    const auth = await createAuth(new RecordCredentials())
+    const launch = new URL(auth.authenticatedUrl('http://127.0.0.1:3080/'))
+    launch.searchParams.set('path', 'a/b/004jie')
+    launch.searchParams.set('chatId', '123')
+    launch.searchParams.set('agentId', '123')
+    launch.searchParams.append('label', '中文 资料')
+    const exchanged = response()
+    expect(auth.authorizeIndex(request(launch.pathname + launch.search), exchanged.value)).toBe(false)
+    expect(exchanged.state.status).toBe(303)
+    const redirect = exchanged.state.headers?.location
+    expect(redirect).toBeDefined()
+    const target = new URL(redirect!, 'http://127.0.0.1:3080/tools/dsh/')
+    expect(target.pathname).toBe('/tools/dsh/')
+    expect([...target.searchParams.entries()]).toEqual([
+      ['path', 'a/b/004jie'], ['chatId', '123'], ['agentId', '123'], ['label', '中文 资料'],
+    ])
+    const cookie = exchanged.state.headers?.['set-cookie']?.split(';', 1)[0]
+    expect(cookie).toBeDefined()
+    const served = response()
+    expect(auth.authorizeIndex(request(target.search, '127.0.0.1:3080', { cookie: cookie! }), served.value)).toBe(true)
+  })
+
+  it('retains business parameters when an authenticated browser cleans stale or repeated tokens', async () => {
+    const auth = await createAuth(new RecordCredentials())
+    const { cookie } = exchange(auth)
+    const redirected = response()
+    expect(auth.authorizeIndex(request('/?token=stale&path=a/b/004jie&chatId=123&token=again&agentId=123',
+      '127.0.0.1:3080', { cookie }), redirected.value)).toBe(false)
+    expect(redirected.state.status).toBe(303)
+    const target = new URL(redirected.state.headers!.location!, 'http://127.0.0.1:3080/')
+    expect([...target.searchParams.entries()]).toEqual([
+      ['path', 'a/b/004jie'], ['chatId', '123'], ['agentId', '123'],
+    ])
+    expect(redirected.state.headers?.['set-cookie']).toBeUndefined()
+  })
+
   it('accepts the cookie for index serving and gives every unauthenticated request one response', async () => {
     const auth = await createAuth(new RecordCredentials())
     const { cookie } = exchange(auth)

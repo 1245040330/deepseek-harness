@@ -1,6 +1,7 @@
 /** Workspace archive and directory UI capability. */
 
 import { Service, type Context } from '@deepseek-ai/cordis'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type { ClientRemote, DirectoryListing, RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type {
   ISessions,
@@ -137,6 +138,12 @@ export class DirectoryBrowseError extends Error {
 /** Implements Workspace archive and directory UI operations. */
 class UiWorkspaceService extends Service implements UiWorkspace {
   readonly defaultWorkspaceId = createSnapshotStore<WorkspaceId | undefined>(undefined)
+  private readonly urlPath = typeof window === 'undefined'
+    ? null : new URLSearchParams(window.location.search).get('path')
+  private readonly chatId = typeof window === 'undefined'
+    ? null : new URLSearchParams(window.location.search).get('chatId')
+  private readonly agentId = typeof window === 'undefined'
+    ? null : new URLSearchParams(window.location.search).get('agentId')
   private defaultWorkspaceRequest: Promise<WorkspaceView | undefined> | undefined
   private readonly connecting = new Map<WorkspaceId, Promise<SessionId>>()
   private readonly lifetime = new AbortController()
@@ -216,7 +223,11 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   openSession(target: SessionTarget): void {
-    this.replaceMain(target, this.lifetime.signal, 'reveal')
+    const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
+    void this.replaceMain(target, navigation, 'reveal').catch((error: unknown) => {
+      // replaceMain reports the failure through the Workspace notice channel.
+      if (!navigation.aborted) console.warn('Session navigation failed:', error)
+    })
   }
 
   openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void> {
@@ -237,7 +248,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       throw error
     }
     if (navigation.aborted) return
-    this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
+    await this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
   }
 
   async forkSession(
@@ -373,16 +384,16 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     const summary = saved.sessionId === undefined ? undefined : sessions.byId[saved.sessionId]
     if (summary !== undefined && workspace.sessionIds.includes(summary.id)
       && !workspaces.archivedSessionIds.includes(summary.id)) {
-      this.replaceMain(summary.id, navigation, 'preserve')
+      await this.replaceMain(summary.id, navigation, 'preserve')
       return
     }
     const sessionId = await this.connectWorkspace(workspace.workspaceId)
-    if (!navigation.aborted) this.replaceMain(sessionId, navigation, 'preserve')
+    if (!navigation.aborted) await this.replaceMain(sessionId, navigation, 'preserve')
   }
 
   private async initializeDefaultWorkspace(signal: AbortSignal): Promise<WorkspaceView | undefined> {
     try {
-      this.defaultWorkspaceRequest ??= this.workspaces.initializeDefault(this.lifetime.signal)
+      this.defaultWorkspaceRequest ??= this.prepareSelectedWorkspace()
         .finally(() => { this.defaultWorkspaceRequest = undefined })
       const workspace = await this.defaultWorkspaceRequest
       if (signal.aborted) return undefined
@@ -396,6 +407,18 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       if (!signal.aborted) this.notify({ kind: 'defaultWorkspaceFailed' })
       return undefined
     }
+  }
+
+  private async prepareSelectedWorkspace(): Promise<WorkspaceView | undefined> {
+    if (this.urlPath === null) return this.workspaces.initializeDefault(this.lifetime.signal)
+    const connection = this.ctx.get('connection') as ConnectionHandle
+    const result = await connection.rpc.call(
+      '/api', 'urlWorkspace/ensure', { args: { path: this.urlPath } }, this.lifetime.signal,
+    )
+    if (!result.ok) throw new Error(result.error.message)
+    if (typeof result.value !== 'string') throw new Error('Invalid URL workspace response')
+    this.lifetime.signal.throwIfAborted()
+    return this.workspaces.create({ path: result.value })
   }
 
   /** @returns true when an archived current selection was cleared. */
@@ -415,15 +438,25 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     this.ctx.layout.selectPanel(null)
   }
 
-  private replaceMain(
+  private async replaceMain(
     target: SessionTarget,
     signal: AbortSignal,
     panel: 'reveal' | 'preserve',
     beforeOpen?: (sessionId: SessionId) => void,
-  ): void {
+  ): Promise<void> {
     signal.throwIfAborted()
+    if (typeof target === 'string') {
+      try {
+        await this.prepareUrlSession(target, signal)
+      } catch (error: unknown) {
+        if (!signal.aborted) this.notify({ kind: 'createFailed', message: creationFailureMessage(error) })
+        throw error
+      }
+      signal.throwIfAborted()
+    }
     const reference = this.sessions.retain(target, { source: 'mainView' })
     try {
+      if (typeof target !== 'string') await this.prepareUrlSession(reference.sessionId, signal)
       signal.throwIfAborted()
       beforeOpen?.(reference.sessionId)
       if (signal.aborted) {
@@ -439,12 +472,31 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       })
     } catch (error: unknown) {
       reference.release()
+      if (!signal.aborted) this.notify({ kind: 'createFailed', message: creationFailureMessage(error) })
       throw error
     }
     const previous = this.mainReference
     this.mainReference = reference
     previous?.release()
     if (panel === 'reveal') this.ctx.layout.selectPanel(null)
+  }
+
+  private async bindChatPreset(sessionId: SessionId, signal: AbortSignal): Promise<void> {
+    if (this.chatId === null) return
+    const connection = this.ctx.get('connection') as ConnectionHandle
+    const result = await connection.rpc.call('/api', 'agentChatPreset/bind',
+      { args: { sessionId, chatId: this.chatId } }, signal)
+    if (!result.ok) throw new Error(result.error.message)
+  }
+
+  private async prepareUrlSession(sessionId: SessionId, signal: AbortSignal): Promise<void> {
+    if (this.agentId !== null) {
+      const connection = this.ctx.get('connection') as ConnectionHandle
+      const result = await connection.rpc.call('/api', 'agentToolLoader/load',
+        { args: { sessionId, agentId: this.agentId } }, signal)
+      if (!result.ok) throw new Error(result.error.message)
+    }
+    await this.bindChatPreset(sessionId, signal)
   }
 
 }

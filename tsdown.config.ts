@@ -1,5 +1,26 @@
 import { defineConfig } from 'tsdown'
+import { existsSync, readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { typertPlugin } from './packages/typert/generator/lib/types/tsdown-plugin.js'
+
+/** Select configured packages without treating extracted archive metadata as a package. */
+function workspaceDirectories(client: boolean): string[] {
+  const root = new URL('./', import.meta.url)
+  const configured = (directory: string): boolean =>
+    existsSync(new URL(`${directory}/package.json`, root))
+    || existsSync(new URL(`${directory}/tsdown.config.ts`, root))
+  const children = (directory: string): string[] =>
+    readdirSync(new URL(`${directory}/`, root), { withFileTypes: true })
+      .filter(entry => entry.isDirectory() && entry.name !== '__MACOSX')
+      .map(entry => `${directory}/${entry.name}`)
+  const directories = [
+    ...children('vendor'),
+    ...children('packages').flatMap(children),
+    'apps/cli',
+    ...client ? [] : ['apps/desktop-host'],
+  ]
+  return directories.filter(configured).map(directory => fileURLToPath(new URL(directory, root)))
+}
 
 function isBuildFaceClient(value: unknown): boolean {
   if (value === undefined || value === 'host') return false
@@ -19,9 +40,7 @@ function isBuildFaceClient(value: unknown): boolean {
 export default defineConfig(({ env }) => {
   const client = isBuildFaceClient(env?.DSH_BUILD_FACE)
   return {
-    workspace: client
-      ? ['vendor/*', 'packages/*/*', 'apps/cli']
-      : ['vendor/*', 'packages/*/*', 'apps/cli', 'apps/desktop-host'],
+    workspace: workspaceDirectories(client),
     entry: client ? '' : ['lib/types/{index,startup}.js'],
     outDir: 'lib',
     format: ['esm'],

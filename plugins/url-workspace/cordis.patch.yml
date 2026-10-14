@@ -1,0 +1,5 @@
+- insert:
+    - id: url-workspace
+      name: './index.ts'
+      config:
+        rootDirectory: '/workspace/'

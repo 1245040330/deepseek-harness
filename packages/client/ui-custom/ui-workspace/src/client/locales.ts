@@ -6,7 +6,7 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
-  'defaultWorkspace.failed': '默认工作区不可用，请联系管理员配置默认工作区',
+  'defaultWorkspace.failed': '工作区初始化失败，请检查 URL 的 path 参数及服务器目录权限',
   'draft.workspaceRequired': '请先选择工作区',
   'draft.initializationFailed': '暂时无法填入草稿，请稍后重试',
   'group.ungrouped': '未分组',
@@ -129,7 +129,7 @@ export type WorkspaceKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
-  'defaultWorkspace.failed': 'Default workspace is unavailable. Contact your administrator to configure it.',
+  'defaultWorkspace.failed': 'Workspace initialization failed. Check the URL path parameter and server directory permissions.',
   'draft.workspaceRequired': 'Choose a workspace first.',
   'draft.initializationFailed': 'Could not fill the draft. Please try again shortly.',
   'group.ungrouped': 'Ungrouped',
