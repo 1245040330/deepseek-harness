@@ -1,15 +1,30 @@
 # Keep the default sources in the profile, but mount only the copied implementations.
 - insert:
-    - id: agent-chat-preset
-      name: '../../../plugins/agent-chat-preset/index.ts'
-      config:
-        endpoint: 'https://gl.jinjiaoyun.com/zhijiaoyun/chatgpt/ChatGPTPublicBAL/getAgentChatPresetData.call'
-        timeoutMs: 30000
-- insert:
-    - id: url-workspace
-      name: '../../../plugins/url-workspace/index.ts'
+    - id: business-login
+      name: '../../../plugins/business-login/index.ts'
       config:
         rootDirectory: '/workspace/'
+        timeoutMs: 30000
+- id: connection
+  disabled: true
+- id: web-runtime
+  disabled: true
+- insert:
+    - id: business-connection
+      name: './connection/lib/index.js'
+      inject: [webStartup]
+      config:
+        trustedHosts: !!js ctx.webStartup.trustedHosts
+        loginEndpoint: 'https://gl.jinjiaoyun.com/zhijiaoyun/chatgpt/ChatGPTPublicBAL/getHarnessLoginInfo.call'
+        loginTimeoutMs: 30000
+    - id: business-web-runtime
+      name: '../../../plugins/business-frontend/index.ts'
+      inject: [webStartup]
+      config:
+        openBrowser: !!js ctx.webStartup.openBrowser
+        printUrl: true
+        publicUrl: !!js ctx.webStartup.publicUrl
+        surfaceContext: true
 - insert:
     - id: agent-tool-loader
       name: '../../../plugins/agent-tool-loader/index.ts'

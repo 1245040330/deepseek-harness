@@ -1,11 +1,26 @@
 {
-  "compilerOptions": { "composite": true },
+  "compilerOptions": {
+    "composite": true
+  },
   "files": [],
   "references": [
-    { "path": "./ui-layout" },
-    { "path": "./ui-sidebar" },
-    { "path": "./ui-conversation" },
-    { "path": "./ui-chat" },
-    { "path": "./ui-workspace" }
+    {
+      "path": "./ui-layout"
+    },
+    {
+      "path": "./ui-sidebar"
+    },
+    {
+      "path": "./ui-conversation"
+    },
+    {
+      "path": "./ui-chat"
+    },
+    {
+      "path": "./ui-workspace"
+    },
+    {
+      "path": "./connection/tsconfig.client.json"
+    }
   ]
 }

@@ -138,12 +138,6 @@ export class DirectoryBrowseError extends Error {
 /** Implements Workspace archive and directory UI operations. */
 class UiWorkspaceService extends Service implements UiWorkspace {
   readonly defaultWorkspaceId = createSnapshotStore<WorkspaceId | undefined>(undefined)
-  private readonly urlPath = typeof window === 'undefined'
-    ? null : new URLSearchParams(window.location.search).get('path')
-  private readonly chatId = typeof window === 'undefined'
-    ? null : new URLSearchParams(window.location.search).get('chatId')
-  private readonly agentId = typeof window === 'undefined'
-    ? null : new URLSearchParams(window.location.search).get('agentId')
   private defaultWorkspaceRequest: Promise<WorkspaceView | undefined> | undefined
   private readonly connecting = new Map<WorkspaceId, Promise<SessionId>>()
   private readonly lifetime = new AbortController()
@@ -410,10 +404,9 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   private async prepareSelectedWorkspace(): Promise<WorkspaceView | undefined> {
-    if (this.urlPath === null) return this.workspaces.initializeDefault(this.lifetime.signal)
     const connection = this.ctx.get('connection') as ConnectionHandle
     const result = await connection.rpc.call(
-      '/api', 'urlWorkspace/ensure', { args: { path: this.urlPath } }, this.lifetime.signal,
+      '/api', 'business/workspace', {}, this.lifetime.signal,
     )
     if (!result.ok) throw new Error(result.error.message)
     if (typeof result.value !== 'string') throw new Error('Invalid URL workspace response')
@@ -481,22 +474,10 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     if (panel === 'reveal') this.ctx.layout.selectPanel(null)
   }
 
-  private async bindChatPreset(sessionId: SessionId, signal: AbortSignal): Promise<void> {
-    if (this.chatId === null) return
-    const connection = this.ctx.get('connection') as ConnectionHandle
-    const result = await connection.rpc.call('/api', 'agentChatPreset/bind',
-      { args: { sessionId, chatId: this.chatId } }, signal)
-    if (!result.ok) throw new Error(result.error.message)
-  }
-
   private async prepareUrlSession(sessionId: SessionId, signal: AbortSignal): Promise<void> {
-    if (this.agentId !== null) {
-      const connection = this.ctx.get('connection') as ConnectionHandle
-      const result = await connection.rpc.call('/api', 'agentToolLoader/load',
-        { args: { sessionId, agentId: this.agentId } }, signal)
-      if (!result.ok) throw new Error(result.error.message)
-    }
-    await this.bindChatPreset(sessionId, signal)
+    const connection = this.ctx.get('connection') as ConnectionHandle
+    const result = await connection.rpc.call('/api', 'business/initialize', { sessionId }, signal)
+    if (!result.ok) throw new Error(result.error.message)
   }
 
 }
