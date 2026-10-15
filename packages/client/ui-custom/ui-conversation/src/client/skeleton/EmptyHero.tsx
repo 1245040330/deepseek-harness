@@ -60,6 +60,7 @@ export function WorkspaceChip({ buttonRef, label, t }: {
 
 /** Hero chrome props. The workspace row rides the InputBar accessory hole, not here. */
 export interface HeroShellProps {
+  agentName?: string | undefined
   /** The owner's locale seat, passed down as a plain prop. */
   t: HeroTranslate
   /** Authorized renderer for the hero brand-mark slot. */
@@ -73,7 +74,7 @@ export interface HeroShellProps {
  * @param props - see {@link HeroShellProps}.
  * @returns the centered hero element tree.
  */
-export function HeroShell({ t, children }: HeroShellProps) {
+export function HeroShell({ t, children, agentName }: HeroShellProps) {
   return (
     <div className={css.root}>
       <div className={css.stack}>
@@ -81,7 +82,7 @@ export function HeroShell({ t, children }: HeroShellProps) {
           <img className={css.brandLogo} src={brandLogo} width={34} height={34} alt="" aria-hidden="true" />
           <span className={css.titleGroup}>
             {/* Own element: keeps the headline text addressable apart from the badge. */}
-            <span>{t('hero.headline')}</span>
+            <span>{agentName ?? t('hero.headline')}</span>
             <span className={css.previewBadge}>{t('hero.preview')}</span>
           </span>
         </div>

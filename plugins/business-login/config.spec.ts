@@ -34,4 +34,6 @@ it('disables the original authentication owners and inserts the copied owners wi
     publicUrl: { __jsExpr: 'ctx.webStartup.publicUrl' }, surfaceContext: true })
   expect(rows.filter(row => !row.disabled && row.name === '@deepseek-ai/dsh-client-connection')).toHaveLength(0)
   expect(rows.filter(row => !row.disabled && row.name === '@deepseek-ai/dsh-web-app')).toHaveLength(0)
+  expect(rows.find(row => row.id === 'ui-model-selection')?.disabled).toBe(true)
+  expect(rows.find(row => row.id === 'business-login')?.config.pluginsDir).toBe('..')
 })

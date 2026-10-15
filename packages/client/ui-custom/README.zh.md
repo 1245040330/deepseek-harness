@@ -27,13 +27,7 @@ pnpm dsh web --patch packages/client/ui-custom/cordis.patch.yml
 
 `cordis.patch.yml` 在本次启动中禁用默认 `ui-layout`、`ui-sidebar`、`ui-conversation` 三条配置，再插入对应的 `ui-custom-*` 副本条目，不写回默认配置。若此前给原 UI 条目设置了自定义配置，需要在覆盖层中的副本条目显式配置相同字段。副本的包名与浏览器模块标识也保留原值，让其他插件的依赖关系继续工作。副本与原版是二选一的实现，不要另行插入一组重复的 UI 条目。副本仅供本地定制，不用于独立 npm 发布。
 
-如需同时启用智能体工具加载器：
-
-```sh
-pnpm dsh web \
-  --patch packages/client/ui-custom/cordis.patch.yml \
-  --patch plugins/agent-tool-loader/cordis.patch.yml
-```
+业务登录返回的 `agentInfo.sysPrompt`、`name`、`model` 和 `pluginList` 用于配置当前聊天。业务登录插件直接加载列表中的本地插件并加入 `defaultContext`，不再查询独立的工具列表接口，也不需要手动调用加载工具。页面隐藏模型选择入口；服务端指定的模型必须在已配置的 provider 模型目录中唯一匹配。
 
 恢复默认 UI：重新启动时去掉自定义 UI 的 `--patch` 参数即可，聊天数据不受影响。
 

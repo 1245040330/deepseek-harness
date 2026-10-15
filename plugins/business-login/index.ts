@@ -1,6 +1,6 @@
 /** Initialize the current chat using the server's authenticated business state. */
 import { createHash } from 'node:crypto'
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Fiber } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId, type Session } from '@deepseek-ai/dsh-session'
@@ -9,11 +9,14 @@ import type {} from '@deepseek-ai/dsh-api-session-controller'
 import type { LoginInfo } from '../../packages/client/ui-custom/connection/src/browser-auth.ts'
 import { prepareDirectory } from '../url-workspace/index.ts'
 import { isAbsolute } from 'node:path'
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { mountPlugins } from './plugins.ts'
+import { installSettings, recordModel, resolveModel } from './agent-settings.ts'
 
 export const name = 'business-login'
-export const inject = ['connection', 'businessAuth', 'sessionController', 'workspaceRegistry']
-export interface Config { rootDirectory: string; timeoutMs: number }
-interface ToolLoader { load(sessionId: string, agentId: string, signal: AbortSignal): Promise<unknown> }
+export const inject = ['connection', 'businessAuth', 'sessionController', 'workspaceRegistry', 'loader', 'llm', 'systemPrompt']
+export interface Config { rootDirectory: string; pluginsDir: string; timeoutMs: number }
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
@@ -25,7 +28,6 @@ function identity(info: LoginInfo): string {
   return createHash('sha256').update(JSON.stringify(info)).digest('hex')
 }
 export function binding(session: Session): string | undefined {
-  // oxlint-disable-next-line typescript/no-deprecated -- Recover the durable initialization identity.
   for (const event of session.snapshotEvents()) {
     const messages = event.type === 'user/message' ? [event.data]
       : event.type === 'agent/inbox/spliced' ? event.data.inserted : []
@@ -36,18 +38,24 @@ export function binding(session: Session): string | undefined {
 
 /** Every route derives initialization facts from the HttpOnly authentication cookie. */
 export function apply(ctx: Context, config: Config): void {
-  if (!isAbsolute(config.rootDirectory) || !Number.isInteger(config.timeoutMs)
+  if (!isAbsolute(config.rootDirectory) || typeof config.pluginsDir !== 'string' || !config.pluginsDir.trim() || !Number.isInteger(config.timeoutMs)
     || config.timeoutMs < 1 || config.timeoutMs > 2147483647) throw new Error('业务初始化配置无效')
   const pending = new WeakMap<Session, { identity: string; ready: Promise<void> }>()
+  const initialized = new WeakMap<Agent, string>()
+  const owners = new Set<Fiber>()
+  const directory = resolve(fileURLToPath(new URL('.', import.meta.url)), config.pluginsDir)
   const lifetime = new AbortController()
-  ctx.effect(() => () => { lifetime.abort() })
+  ctx.effect(() => async () => {
+    lifetime.abort()
+    await Promise.all([...owners].map(async owner => { await owner.dispose(); await owner.await() }))
+    owners.clear()
+  })
 
   async function initialize(agent: Agent, info: LoginInfo, signal: AbortSignal): Promise<void> {
     const wanted = identity(info)
     const existing = binding(agent.session)
     if (existing !== undefined && existing !== wanted) throw new Error('当前会话已绑定其他业务登录信息，请新建会话')
-    const loader = ctx.get('agentToolLoader') as ToolLoader | undefined
-    if (loader === undefined) throw new Error('智能体工具加载插件未就绪')
+    if (initialized.get(agent) === wanted) return
     // Await recovery/previous work without interrupting it; maintenance keeps new input queued.
     let abort: (() => void) | undefined
     try {
@@ -62,13 +70,30 @@ export function apply(ctx: Context, config: Config): void {
     signal.throwIfAborted()
     await agent.runMaintenance(async maintenanceSignal => {
       const activeSignal = AbortSignal.any([signal, maintenanceSignal])
-      await loader.load(agent.session.id, info.agentId, activeSignal)
-      activeSignal.throwIfAborted()
-      if (existing !== undefined) return
-      agent.inbox.prepend('next-step', createUserMessage({
-        content: [{ type: 'text', text: `业务系统提供的默认上下文（JSON）：\n${JSON.stringify(info.defaultContext, null, 2)}` }],
-        source: { kind: 'business-login', identity: wanted },
-      }))
+      const selected = await resolveModel(ctx, info.agentInfo.model, activeSignal)
+      let owner: Fiber | undefined
+      try {
+        owner = await mountPlugins(agent, info.agentInfo.pluginList, directory, activeSignal)
+          ?? agent.ctx.plugin({ name: 'business-login-settings', apply() {} })
+        await owner.await()
+        owners.add(owner)
+        const mounted = owner
+        owner.ctx.effect(() => () => { owners.delete(mounted); initialized.delete(agent) })
+        installSettings(owner.ctx, info.agentInfo.sysPrompt, selected)
+        await owner.ctx.systemPrompt.assemble({ agent, scope: agent, signal: activeSignal })
+        activeSignal.throwIfAborted()
+        recordModel(agent, selected)
+        if (existing === undefined) {
+          agent.inbox.prepend('next-step', createUserMessage({
+            content: [{ type: 'text', text: `业务系统提供的默认上下文（JSON）：\n${JSON.stringify(info.defaultContext, null, 2)}` }],
+            source: { kind: 'business-login', identity: wanted },
+          }))
+        }
+        initialized.set(agent, wanted)
+      } catch (error) {
+        if (owner !== undefined) { await owner.dispose(); await owner.await(); owners.delete(owner) }
+        throw error
+      }
     })
   }
 
@@ -88,7 +113,7 @@ export function apply(ctx: Context, config: Config): void {
           if (info === undefined) throw new Error('业务登录已过期，请重新登录')
           const directory = await prepareDirectory(config.rootDirectory, info.path)
           const workspace = await ctx.workspaceRegistry.create(directory)
-          if (operation === 'workspace') return respond({ ok: true, value: workspace.path })
+          if (operation === 'workspace') return respond({ ok: true, value: { path: workspace.path, name: info.agentInfo.name } })
           const payload = message.payload
           if (typeof payload !== 'object' || payload === null || !('sessionId' in payload)
             || typeof payload.sessionId !== 'string' || !payload.sessionId) throw new Error('会话 ID 无效')

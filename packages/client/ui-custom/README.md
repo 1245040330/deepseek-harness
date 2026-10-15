@@ -27,13 +27,7 @@ The build script links each copy to its default package's installed dependencies
 
 The overlay disables the three default UI entries for that launch and inserts the copied implementations under `ui-custom-*` entry IDs. It does not save changes to the default profile. Existing custom settings on the default entries must be supplied explicitly on their corresponding copied entries. The copies retain the original package names and browser module IDs so existing plugin dependencies continue resolving. These private copies are alternative implementations, not independently publishable npm packages. Never activate both implementations of a UI package simultaneously.
 
-The Agent Tool Loader can be enabled alongside this UI:
-
-```sh
-pnpm dsh web \
-  --patch packages/client/ui-custom/cordis.patch.yml \
-  --patch plugins/agent-tool-loader/cordis.patch.yml
-```
+Business login supplies `agentInfo.sysPrompt`, `name`, `model` and `pluginList`. The business login plugin configures the current chat, loads the listed local plugins, and injects `defaultContext`; no separate tool-list API or manual loading command is used. Model selection UI is hidden. The supplied model must uniquely match a configured provider catalog.
 
 To return to the default UI, restart without the custom UI overlay. Conversation data is unaffected.
 

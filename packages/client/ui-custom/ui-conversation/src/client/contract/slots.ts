@@ -471,7 +471,7 @@ export interface ConversationWidthControlsInputProps {
 }
 
 /** Full props of the reusable Conversation Factory definition. */
-export type ConversationContentProps = FactoryComponentPropsOf<'conversation.content'>
+export type ConversationContentProps = FactoryComponentPropsOf<'conversation.content'> & { businessAgentName?: string }
 
 /** Shared target-neutral Conversation store handle. */
 export type ConversationStore = ReturnType<typeof createConversationStore>

@@ -4,6 +4,7 @@
       name: '../../../plugins/business-login/index.ts'
       config:
         rootDirectory: '/workspace/'
+        pluginsDir: '..'
         timeoutMs: 30000
 - id: connection
   disabled: true
@@ -25,13 +26,8 @@
         printUrl: true
         publicUrl: !!js ctx.webStartup.publicUrl
         surfaceContext: true
-- insert:
-    - id: agent-tool-loader
-      name: '../../../plugins/agent-tool-loader/index.ts'
-      config:
-        endpoint: 'https://gl.jinjiaoyun.com/zhijiaoyun/chatgpt/ChatGPTPublicBAL/getAgentToolList.call'
-        pluginsDir: '..'
-        timeoutMs: 30000
+- id: ui-model-selection
+  disabled: true
 - id: ui-layout
   disabled: true
 - id: ui-sidebar

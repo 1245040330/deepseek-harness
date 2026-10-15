@@ -3,9 +3,16 @@ import { createHash, randomBytes } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConnectionIndexRequest, ConnectionIndexResponse, ConnectionTrustRequest } from './rpc.ts'
 
+export interface AgentInfo {
+  sysPrompt: string
+  name: string
+  model: string
+  pluginList: string[]
+}
 export interface LoginInfo {
   path: string
   agentId: string
+  agentInfo: AgentInfo
   defaultContext: Record<string, unknown>
 }
 export interface BusinessAuthConfig { loginEndpoint: string; loginTimeoutMs: number; cookieMaxAgeDays: number }
@@ -38,7 +45,28 @@ export function loginInfo(value: unknown): LoginInfo {
     || !('agentId' in data) || typeof data.agentId !== 'string' || !data.agentId.trim()
     || !('defaultContext' in data) || typeof data.defaultContext !== 'object' || data.defaultContext === null
     || Array.isArray(data.defaultContext)) throw new Error('业务登录返回的 path、agentId 或 defaultContext 无效')
-  return { path: data.path, agentId: data.agentId.trim(), defaultContext: { ...data.defaultContext } }
+  if (!('agentInfo' in data) || typeof data.agentInfo !== 'object' || data.agentInfo === null) {
+    throw new Error('业务登录返回的 agentInfo 无效')
+  }
+  const info = data.agentInfo
+  if (!('sysPrompt' in info) || typeof info.sysPrompt !== 'string' || !info.sysPrompt.trim()
+    || !('name' in info) || typeof info.name !== 'string' || !info.name.trim()
+    || !('model' in info) || typeof info.model !== 'string' || !info.model.trim()
+    || !('pluginList' in info) || !Array.isArray(info.pluginList)
+    || info.pluginList.some(id => typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(id) || id === 'business-login')) {
+    throw new Error('业务登录返回的 agentInfo.sysPrompt、name、model 或 pluginList 无效')
+  }
+  return {
+    path: data.path,
+    agentId: data.agentId.trim(),
+    defaultContext: { ...data.defaultContext },
+    agentInfo: {
+      sysPrompt: info.sysPrompt,
+      name: info.name.trim(),
+      model: info.model.trim(),
+      pluginList: [...new Set<string>(info.pluginList)],
+    },
+  }
 }
 
 /** Process-owned opaque cookies; original launch tokens and cookies are never accepted. */
@@ -97,7 +125,7 @@ export class BrowserAuth {
     } catch (error) {
       // Reject the page without logging the credential-bearing URL or remote response.
       response.writeHead(401, { 'cache-control': 'no-store', 'content-type': 'text/plain; charset=utf-8', 'referrer-policy': 'no-referrer' })
-      response.end(error instanceof Error && error.message === '业务登录返回的 path、agentId 或 defaultContext 无效'
+      response.end(error instanceof Error && error.message.startsWith('业务登录返回的 ')
         ? error.message : '业务认证失败，请检查 token 或稍后重试')
       return false
     }

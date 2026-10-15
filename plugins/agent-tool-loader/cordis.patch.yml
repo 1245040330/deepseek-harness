@@ -1,7 +1,0 @@
-- insert:
-    - id: agent-tool-loader
-      name: './index.ts'
-      config:
-        endpoint: 'https://gl.jinjiaoyun.com/zhijiaoyun/chatgpt/ChatGPTPublicBAL/getAgentToolList.call'
-        pluginsDir: '..'
-        timeoutMs: 30000

@@ -139,6 +139,7 @@ export class DirectoryBrowseError extends Error {
 class UiWorkspaceService extends Service implements UiWorkspace {
   readonly defaultWorkspaceId = createSnapshotStore<WorkspaceId | undefined>(undefined)
   private defaultWorkspaceRequest: Promise<WorkspaceView | undefined> | undefined
+  private disposeAgentName: (() => void) | undefined
   private readonly connecting = new Map<WorkspaceId, Promise<SessionId>>()
   private readonly lifetime = new AbortController()
   private readonly selection = createSnapshotStore<MainSelection>(
@@ -168,6 +169,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       return () => {
         stop()
         this.lifetime.abort()
+        this.disposeAgentName?.()
         const reference = this.mainReference
         this.mainReference = undefined
         reference?.release()
@@ -409,9 +411,13 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       '/api', 'business/workspace', {}, this.lifetime.signal,
     )
     if (!result.ok) throw new Error(result.error.message)
-    if (typeof result.value !== 'string') throw new Error('Invalid URL workspace response')
+    if (typeof result.value !== 'object' || result.value === null
+      || !('path' in result.value) || typeof result.value.path !== 'string'
+      || !('name' in result.value) || typeof result.value.name !== 'string') throw new Error('Invalid business workspace response')
     this.lifetime.signal.throwIfAborted()
-    return this.workspaces.create({ path: result.value })
+    this.disposeAgentName?.()
+    this.disposeAgentName = this.ctx.slots.provideRoot({ props: { businessAgentName: result.value.name } })
+    return this.workspaces.create({ path: result.value.path })
   }
 
   /** @returns true when an archived current selection was cleared. */

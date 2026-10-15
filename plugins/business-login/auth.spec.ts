@@ -21,6 +21,7 @@ import { loginInfo } from '../../packages/client/ui-custom/connection/src/browse
 const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { for (const dispose of cleanup.splice(0).reverse()) await dispose() })
 const data = { path: '992/1/教学工作台/1serviceName', agentId: '123',
+  agentInfo: { sysPrompt: '业务系统提示词', name: '教学工作台', model: 'qwen3.8-max', pluginList: [] },
   defaultContext: { '工作职责': '文档摘要，归集整理，统计分析，质量初审', '智能体名称': '教学工作台' } }
 
 async function setup() {
@@ -120,4 +121,8 @@ it('validates business paths and preserves every default context field', () => {
     expect(() => loginInfo({ code: 200, data: { ...data, path } })).toThrow()
   }
   expect(() => loginInfo({ code: 500, data })).toThrow()
+  for (const agentInfo of [null, { ...data.agentInfo, pluginList: ['../outside'] },
+    { ...data.agentInfo, pluginList: [12] }, { ...data.agentInfo, model: '' }, { ...data.agentInfo, sysPrompt: '' }]) {
+    expect(() => loginInfo({ code: 200, data: { ...data, agentInfo } })).toThrow('agentInfo')
+  }
 })

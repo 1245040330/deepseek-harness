@@ -1,0 +1,6 @@
+- insert:
+    - id: clinfo-document-text
+      name: './index.ts'
+      config:
+        endpoint: 'https://innerapi.clinfo.cn/hitl/document-record/latest-success'
+        timeoutMs: 30000
