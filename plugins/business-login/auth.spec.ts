@@ -21,7 +21,7 @@ import { loginInfo } from '../../packages/client/ui-custom/connection/src/browse
 const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { for (const dispose of cleanup.splice(0).reverse()) await dispose() })
 const data = { path: '992/1/教学工作台/1serviceName', agentId: '123',
-  defautContext: { '工作职责': '文档摘要，归集整理，统计分析，质量初审', '智能体名称': '教学工作台' } }
+  defaultContext: { '工作职责': '文档摘要，归集整理，统计分析，质量初审', '智能体名称': '教学工作台' } }
 
 async function setup() {
   const calls: string[] = []

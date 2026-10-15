@@ -18,7 +18,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 const cleanup: (() => Promise<unknown>)[] = []
 afterEach(async () => { vi.unstubAllGlobals(); for (const dispose of cleanup.splice(0).reverse()) await dispose() })
 const data = { path: '992/1/教学工作台/1serviceName', agentId: '123',
-  defautContext: { '工作职责': '文档摘要，归集整理，统计分析，质量初审', '智能体名称': '教学工作台', all: [false, null, 0] } }
+  defaultContext: { '工作职责': '文档摘要，归集整理，统计分析，质量初审', '智能体名称': '教学工作台', all: [false, null, 0] } }
 
 async function setup() {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'business-initialize-')))
@@ -75,13 +75,13 @@ async function setup() {
 it('uses server-authenticated path and agentId and durably injects complete context exactly once', async () => {
   const b = await setup()
   expect(b.workspace.path).toBe(join(b.root, data.path))
-  const payload = { sessionId: 'first', path: 'evil', agentId: 'evil', defautContext: { bad: true } }
+  const payload = { sessionId: 'first', path: 'evil', agentId: 'evil', defaultContext: { bad: true } }
   const results = await Promise.all([b.call('initialize', b.cookie, payload), b.call('initialize', b.cookie, payload)])
   expect(results).toEqual([{ ok: true, value: null }, { ok: true, value: null }])
   expect((await b.call('initialize', b.cookie, payload)).ok).toBe(true)
   expect(b.first.inbox.nextStep).toHaveLength(1)
   expect(b.first.inbox.nextStep[0]?.content).toEqual([{ type: 'text',
-    text: `业务系统提供的默认上下文（JSON）：\n${JSON.stringify(data.defautContext, null, 2)}` }])
+    text: `业务系统提供的默认上下文（JSON）：\n${JSON.stringify(data.defaultContext, null, 2)}` }])
   expect(BusinessLogin.binding(b.first.session)).toBeDefined()
   expect(b.second.inbox.nextStep).toHaveLength(0)
   const tools = b.fetcher.mock.calls.filter(([url]) => new URL(url).pathname === '/tools')
@@ -92,7 +92,7 @@ it('uses server-authenticated path and agentId and durably injects complete cont
 it('rejects a different business identity on the same chat while allowing a new chat', async () => {
   const b = await setup()
   await b.call('initialize', b.cookie, { sessionId: 'first' })
-  b.setData({ ...data, defautContext: { ...data.defautContext, '智能体名称': '另一个智能体' } })
+  b.setData({ ...data, defaultContext: { ...data.defaultContext, '智能体名称': '另一个智能体' } })
   const changed = await b.login()
   const rejected = await b.call('initialize', changed, { sessionId: 'first' })
   expect(rejected.ok).toBe(false)

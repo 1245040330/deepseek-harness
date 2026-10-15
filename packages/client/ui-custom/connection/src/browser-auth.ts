@@ -6,7 +6,7 @@ import type { ConnectionIndexRequest, ConnectionIndexResponse, ConnectionTrustRe
 export interface LoginInfo {
   path: string
   agentId: string
-  defautContext: Record<string, unknown>
+  defaultContext: Record<string, unknown>
 }
 export interface BusinessAuthConfig { loginEndpoint: string; loginTimeoutMs: number; cookieMaxAgeDays: number }
 interface LoginSession { authority: string; expiresAt: number; info: LoginInfo }
@@ -36,9 +36,9 @@ export function loginInfo(value: unknown): LoginInfo {
     || /[\\\x00-\x1f\x7f:]/.test(data.path)
     || data.path.split('/').some(segment => !segment || segment === '.' || segment === '..' || segment.trim() !== segment)
     || !('agentId' in data) || typeof data.agentId !== 'string' || !data.agentId.trim()
-    || !('defautContext' in data) || typeof data.defautContext !== 'object' || data.defautContext === null
-    || Array.isArray(data.defautContext)) throw new Error('业务登录返回的 path、agentId 或 defautContext 无效')
-  return { path: data.path, agentId: data.agentId.trim(), defautContext: { ...data.defautContext } }
+    || !('defaultContext' in data) || typeof data.defaultContext !== 'object' || data.defaultContext === null
+    || Array.isArray(data.defaultContext)) throw new Error('业务登录返回的 path、agentId 或 defaultContext 无效')
+  return { path: data.path, agentId: data.agentId.trim(), defaultContext: { ...data.defaultContext } }
 }
 
 /** Process-owned opaque cookies; original launch tokens and cookies are never accepted. */
@@ -97,7 +97,7 @@ export class BrowserAuth {
     } catch (error) {
       // Reject the page without logging the credential-bearing URL or remote response.
       response.writeHead(401, { 'cache-control': 'no-store', 'content-type': 'text/plain; charset=utf-8', 'referrer-policy': 'no-referrer' })
-      response.end(error instanceof Error && error.message === '业务登录返回的 path、agentId 或 defautContext 无效'
+      response.end(error instanceof Error && error.message === '业务登录返回的 path、agentId 或 defaultContext 无效'
         ? error.message : '业务认证失败，请检查 token 或稍后重试')
       return false
     }

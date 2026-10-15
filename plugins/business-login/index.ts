@@ -66,7 +66,7 @@ export function apply(ctx: Context, config: Config): void {
       activeSignal.throwIfAborted()
       if (existing !== undefined) return
       agent.inbox.prepend('next-step', createUserMessage({
-        content: [{ type: 'text', text: `业务系统提供的默认上下文（JSON）：\n${JSON.stringify(info.defautContext, null, 2)}` }],
+        content: [{ type: 'text', text: `业务系统提供的默认上下文（JSON）：\n${JSON.stringify(info.defaultContext, null, 2)}` }],
         source: { kind: 'business-login', identity: wanted },
       }))
     })
